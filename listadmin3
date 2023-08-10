@@ -1,0 +1,224 @@
+#!/usr/bin/python3
+#
+# Copyright 2023 Jonathan McDowell <noodles@earth.li>
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more
+# details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <https://www.gnu.org/licenses/>.
+
+import os
+import sys
+import termios
+
+import mechanicalsoup
+
+class Mailman3UI:
+    """ Class allowing interactions with the Mailman3 web interface """
+    def __init__(self, url, username, password):
+        self._browser = mechanicalsoup.StatefulBrowser(
+            soup_config={'features': 'lxml'},
+            user_agent='listadmin3/0.1',
+        )
+        self._baseurl = url
+        self._username = username
+        self._password = password
+
+    def login(self):
+        """ Logs in to the Mailman3 instance """
+        self._browser.open(self._baseurl + 'accounts/login/')
+        self._browser.select_form(selector='form.login')
+        self._browser["login"] = self._username
+        self._browser["password"] = self._password
+        self._browser.submit_selected()
+
+    def logout(self):
+        """ Logs out of the Mailman3 instance """
+        self._browser.open(self._baseurl + 'accounts/logout/')
+
+    def get_held_messages(self, listname):
+        """ Get a list of held messages for the supplied listname """
+        page = self._browser.open(self._baseurl + 'postorius/lists/' + listname + '/held_messages')
+
+        count_select = page.soup.find("select", attrs={'name': 'count'})
+        if not count_select:
+            # Assume no held messages (could check for "There are currently no held messages."
+            # message)
+            return []
+        count_form = count_select.parent
+        count = 10
+        for option in count_select.find_all('option'):
+            if 'selected' in option.attrs:
+                count = option['value']
+        if count != 200:
+            count_form = self._browser.select_form(selector=count_form)
+            count_form.set_select({'count': 200})
+            page = self._browser.submit_selected()
+
+        msg_form = page.soup.find("h2")
+        if msg_form.text.strip() != "Held Messages":
+            raise Exception("Couldn't find held message list")
+        msg_form = msg_form.find_next_sibling("form")
+        msg_list = msg_form.find("tbody")
+        msgs = []
+        for msg_row in msg_list.find_all("tr"):
+            msg = {}
+            td = msg_row.find("td")
+            msg_id = td.find("input")
+            msg['id'] = msg_id['value']
+            td = td.find_next_sibling("td")
+            subject = td.find("a")
+            msg["subject"] = subject.text.strip()
+            td = td.find_next_sibling("td")
+            msg["sender"] = td.text
+            td = td.find_next_sibling("td")
+            msg["reason"] = td.text
+            td = td.find_next_sibling("td")
+            msg["date"] = td.text
+
+            msgs.append(msg)
+
+        return msgs
+
+    def set_held_messages(self, listname, action, msgs):
+        """ Set the status for the list of held messages for the supplied listname
+
+            action must be one of 'accept', 'discard', or 'reject'.
+        """
+        page = self._browser.open(self._baseurl + 'postorius/lists/' + listname + '/held_messages')
+
+        count_select = page.soup.find("select", attrs={'name': 'count'})
+        count_form = count_select.parent
+        count = 10
+        for option in count_select.find_all('option'):
+            if 'selected' in option.attrs:
+                count = option['value']
+        if count != 200:
+            count_form = self._browser.select_form(selector=count_form)
+            count_form.set_select({'count': 200})
+            page = self._browser.submit_selected()
+
+        msg_form = page.soup.find("h2")
+        if msg_form.text.strip() != "Held Messages":
+            raise Exception("Couldn't find held message list")
+        msg_form = msg_form.find_next_sibling("form")
+        msg_form = self._browser.select_form(selector=msg_form)
+        msg_form.set_checkbox({'choices': msgs})
+        msg_form.choose_submit(action)
+        self._browser.submit_selected()
+
+
+def getch() -> str:
+    """ Get a single character from stdin without waiting for enter to be pressed """
+    stdin_fd = sys.stdin.fileno()
+    orig = termios.tcgetattr(stdin_fd)
+
+    new = termios.tcgetattr(stdin_fd)
+    new[3] = new[3] & ~termios.ICANON
+    new[6][termios.VMIN] = 1
+    new[6][termios.VTIME] = 0
+
+    try:
+        termios.tcsetattr(stdin_fd, termios.TCSAFLUSH, new)
+        return sys.stdin.read(1)
+    finally:
+        termios.tcsetattr(stdin_fd, termios.TCSAFLUSH, orig)
+
+
+def read_config(filename: str):
+    """ Reads the config file """
+
+    conf = {
+        'lists': [],
+    }
+
+    with open(filename, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+
+            if not line or line[0] == '#':
+                continue
+
+            parts = line.split()
+            if len(parts) != 2:
+                raise Exception("Invalid config option:", line)
+
+            if parts[0] == 'list':
+                conf['lists'].append(parts[1])
+            else:
+                conf[parts[0]] = parts[1]
+
+    return conf
+
+
+def moderate_list(ui, listname):
+    """ Moderate the given list for the supplied Mailman3 web interface
+
+    Retrieves the list of held messages for the list, and displays each in turn to the user.
+    The user can then select what to do with the message. Once all messages for the list have
+    been dealt with the user is asked to confirm that we should proceed.
+    """
+
+    print(f"fetching data for {listname} ... ", end='', flush=True)
+    listname.replace('@', '.')
+    msgs = ui.get_held_messages(listname)
+    count = len(msgs)
+    if count == 0:
+        print("nothing in queue")
+        return
+
+    print(f"{count} messages")
+
+    todo = {
+            'accept': [],
+            'discard': [],
+    }
+    i = 1
+    for msg in msgs:
+        print(f"({i}/{count}) {msg['id']}: {msg['sender']} / {msg['date']}:")
+        print(f"  {msg['reason']}: {msg['subject']}")
+        print("(a)ccept, (d)iscard, (s)kip, (q)uit? ", end='', flush=True)
+        c = getch()
+        print()
+        if c == 'a':
+            todo['accept'].append(msg['id'])
+        elif c == 'd':
+            todo['discard'].append(msg['id'])
+        elif c == 'q':
+            print("Moving on...")
+            return
+        i+= 1
+
+    if len(todo['accept']) > 0 or len(todo['discard']) > 0:
+        print(f"{len(todo['accept'])} to accept, {len(todo['discard'])} to discard, proceed? (y/n) ",
+                end='', flush=True)
+
+        c = getch()
+        print()
+        if c != 'y':
+            print("Moving on...")
+            return
+
+        if len(todo['accept']) > 0:
+            ui.set_held_messages(listname, 'accept', todo['accept'])
+        if len(todo['discard']) > 0:
+            ui.set_held_messages(listname, 'discard', todo['discard'])
+
+
+config = read_config(os.getenv('HOME') + '/.listadmin3.ini')
+
+webui = Mailman3UI(url=config['base_url'],
+                   username=config['username'],
+                   password=config['password'])
+webui.login()
+
+for l in config['lists']:
+    moderate_list(webui, l)
