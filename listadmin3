@@ -25,6 +25,7 @@
 """
 
 import os
+import json
 import sys
 import termios
 import tty
@@ -130,6 +131,16 @@ class Mailman3UI:
         self._browser.submit_selected()
 
 
+    def get_message(self, listname: str, msg: int) -> dict:
+        """ Retrieves a message from a list """
+        page = self._browser.open(self._baseurl + 'postorius/api/list/' + listname +
+                                  '/held_message/' + str(msg))
+        if page.status_code != 200:
+            return {}
+
+        return json.loads(page.text)
+
+
 def getch(allowed_chars="") -> str:
     """ Get a single character from stdin without waiting for enter to be pressed """
     stdin_fd = sys.stdin.fileno()
@@ -175,6 +186,7 @@ def read_config(filename: str) -> dict:
     return conf
 
 
+#pylint: disable=too-many-branches
 def moderate_list(mmui: Mailman3UI, listname: str):
     """ Moderate the given list for the supplied Mailman3 web interface
 
@@ -197,19 +209,33 @@ def moderate_list(mmui: Mailman3UI, listname: str):
             'accept': [],
             'discard': [],
     }
-    i = 1
-    for msg in msgs:
-        print(f"({i}/{count}) {msg['id']}: {msg['sender']} / {msg['date']}:")
-        print(f"  {msg['reason']}: {msg['subject']}")
-        print("(a)ccept, (d)iscard, (s)kip, (q)uit? ", end='', flush=True)
+    i = 0
+    while i < len(msgs):
+        print(f"({i+1}/{count}) {msgs[i]['id']}: {msgs[i]['sender']} / {msgs[i]['date']}:")
+        print(f"  {msgs[i]['reason']}: {msgs[i]['subject']}")
+        print("(a)ccept, (d)iscard, (b)ody, (h)eaders, (s)kip, (q)uit? ", end='', flush=True)
 
         # pylint: disable=invalid-name
-        c = getch("adqs")
+        c = getch("abdhqs")
         print()
         if c == 'a':
-            todo['accept'].append(msg['id'])
+            todo['accept'].append(msgs[i]['id'])
+        elif c == 'b':
+            msg = webui.get_message(listname, msgs[i]['id'])
+            curline = 0
+            for line in msg['msg']['body'].split('\n'):
+                print(f"| {line}")
+                curline += 1
+                if curline >= 20:
+                    break
+            continue
         elif c == 'd':
-            todo['discard'].append(msg['id'])
+            todo['discard'].append(msgs[i]['id'])
+        elif c == 'h':
+            msg = webui.get_message(listname, msgs[i]['id'])
+            for line in msg['msg']['headers'].split('\n'):
+                print(f"| {line}")
+            continue
         elif c == 'q':
             print("Moving on...")
             return
