@@ -1,0 +1,19 @@
+Source: listadmin3
+Section: net
+Priority: optional
+Maintainer: Jonathan McDowell <noodles@earth.li>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/u1f35c/listadmin3
+Rules-Requires-Root: no
+
+Package: listadmin3
+Architecture: all
+Depends: python3, python3-mechanicalsoup
+Description: command line mailman3 moderator queue tool
+ listadmin3 is an unimaginatively named command line tool to manage Mailman3
+ lists and process queues, without the need to go to the Mailman3 interface.
+ It currently allows for the inspection of message moderation queues, allowing
+ for messages to be accepted or discarded manually. It is inspired by
+ listadmin, which is a much more fully featured tool that operates on Mailman 2
+ lists.
