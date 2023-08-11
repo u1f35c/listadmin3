@@ -15,11 +15,24 @@
 # You should have received a copy of the GNU General Public License along with
 # this program. If not, see <https://www.gnu.org/licenses/>.
 
+"""
+ listadmin3 is an unimaginatively named command line tool to manage Mailman3
+ lists and process queues, without the need to go to the Mailman3 interface.
+ It currently allows for the inspection of message moderation queues, allowing
+ for messages to be accepted or discarded manually. It is inspired by
+ listadmin, which is a much more fully featured tool that operates on Mailman 2
+ lists.
+"""
+
 import os
 import sys
 import termios
 
 import mechanicalsoup
+
+class HTMLParseError(Exception):
+    """ Exception class for reporting HTML parse errors """
+
 
 class Mailman3UI:
     """ Class allowing interactions with the Mailman3 web interface """
@@ -65,24 +78,24 @@ class Mailman3UI:
 
         msg_form = page.soup.find("h2")
         if msg_form.text.strip() != "Held Messages":
-            raise Exception("Couldn't find held message list")
+            raise HTMLParseError("Couldn't find held message list")
         msg_form = msg_form.find_next_sibling("form")
         msg_list = msg_form.find("tbody")
         msgs = []
         for msg_row in msg_list.find_all("tr"):
             msg = {}
-            td = msg_row.find("td")
-            msg_id = td.find("input")
+            row_data = msg_row.find("td")
+            msg_id = row_data.find("input")
             msg['id'] = msg_id['value']
-            td = td.find_next_sibling("td")
-            subject = td.find("a")
+            row_data = row_data.find_next_sibling("td")
+            subject = row_data.find("a")
             msg["subject"] = subject.text.strip()
-            td = td.find_next_sibling("td")
-            msg["sender"] = td.text
-            td = td.find_next_sibling("td")
-            msg["reason"] = td.text
-            td = td.find_next_sibling("td")
-            msg["date"] = td.text
+            row_data = row_data.find_next_sibling("td")
+            msg["sender"] = row_data.text
+            row_data = row_data.find_next_sibling("td")
+            msg["reason"] = row_data.text
+            row_data = row_data.find_next_sibling("td")
+            msg["date"] = row_data.text
 
             msgs.append(msg)
 
@@ -108,7 +121,7 @@ class Mailman3UI:
 
         msg_form = page.soup.find("h2")
         if msg_form.text.strip() != "Held Messages":
-            raise Exception("Couldn't find held message list")
+            raise HTMLParseError("Couldn't find held message list")
         msg_form = msg_form.find_next_sibling("form")
         msg_form = self._browser.select_form(selector=msg_form)
         msg_form.set_checkbox({'choices': msgs})
@@ -140,6 +153,7 @@ def read_config(filename: str):
         'lists': [],
     }
 
+    # pylint: disable=invalid-name
     with open(filename, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -149,7 +163,8 @@ def read_config(filename: str):
 
             parts = line.split()
             if len(parts) != 2:
-                raise Exception("Invalid config option:", line)
+                print("Invalid config option:", line)
+                sys.exit(1)
 
             if parts[0] == 'list':
                 conf['lists'].append(parts[1])
@@ -159,7 +174,7 @@ def read_config(filename: str):
     return conf
 
 
-def moderate_list(ui, listname):
+def moderate_list(mmui, listname):
     """ Moderate the given list for the supplied Mailman3 web interface
 
     Retrieves the list of held messages for the list, and displays each in turn to the user.
@@ -169,7 +184,7 @@ def moderate_list(ui, listname):
 
     print(f"fetching data for {listname} ... ", end='', flush=True)
     listname.replace('@', '.')
-    msgs = ui.get_held_messages(listname)
+    msgs = mmui.get_held_messages(listname)
     count = len(msgs)
     if count == 0:
         print("nothing in queue")
@@ -186,6 +201,8 @@ def moderate_list(ui, listname):
         print(f"({i}/{count}) {msg['id']}: {msg['sender']} / {msg['date']}:")
         print(f"  {msg['reason']}: {msg['subject']}")
         print("(a)ccept, (d)iscard, (s)kip, (q)uit? ", end='', flush=True)
+
+        # pylint: disable=invalid-name
         c = getch()
         print()
         if c == 'a':
@@ -198,9 +215,12 @@ def moderate_list(ui, listname):
         i+= 1
 
     if len(todo['accept']) > 0 or len(todo['discard']) > 0:
-        print(f"{len(todo['accept'])} to accept, {len(todo['discard'])} to discard, proceed? (y/n) ",
+        print(f"{len(todo['accept'])} to accept, "
+              f"{len(todo['discard'])} to discard, "
+               "proceed? (y/n) ",
                 end='', flush=True)
 
+        # pylint: disable=invalid-name
         c = getch()
         print()
         if c != 'y':
@@ -208,9 +228,9 @@ def moderate_list(ui, listname):
             return
 
         if len(todo['accept']) > 0:
-            ui.set_held_messages(listname, 'accept', todo['accept'])
+            mmui.set_held_messages(listname, 'accept', todo['accept'])
         if len(todo['discard']) > 0:
-            ui.set_held_messages(listname, 'discard', todo['discard'])
+            mmui.set_held_messages(listname, 'discard', todo['discard'])
 
 
 config = read_config(os.getenv('HOME') + '/.listadmin3.ini')
