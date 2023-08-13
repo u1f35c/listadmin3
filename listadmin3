@@ -267,7 +267,7 @@ def moderate_messages(mmui: Mailman3UI, listname: str) -> bool:
     }
     i = 0
     while i < len(msgs):
-        print(f"({i+1}/{count}) {msgs[i]['id']}: {msgs[i]['sender']} / {msgs[i]['date']}:")
+        print(f"({i+1}/{count}) {msgs[i]['sender']} / {msgs[i]['date']}:")
         print(f"  {msgs[i]['reason']}: {msgs[i]['subject']}")
         print("(a)ccept, (d)iscard, (b)ody, (h)eaders, (s)kip, (q)uit? ", end='', flush=True)
 
