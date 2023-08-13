@@ -1,0 +1,71 @@
+.TH LISTADMIN3 1 "2023-08-13"
+
+.SH NAME
+listadmin3 \- A command line mailman3 moderator queue tool
+
+.SH SYNPOSIS
+\fBlistadmin3\fP [--help] [--debug] [--version] [--config \fIconfigfile\fP]
+
+.SH DESCRIPTION
+\fBlistadmin3\fP is an unimaginatively named command line tool to manage
+Mailman3 lists and process queues, without the need to go to the Mailman3
+interface. It currently allows for the inspection of message moderation queues,
+allowing for messages to be accepted or discarded manually. It is inspired by
+listadmin, which is a much more fully featured tool that operates on Mailman 2
+lists.
+
+.SS Options
+.TP
+\fB--config\fP \fIconfigfile\fP
+Specify an alternative config file to retrieve configuration from, rather than
+the default (\fB~/.listadmin3.ini\fP)
+.TP
+\fB--debug\fP
+Output verbose debug logging (mostly the retrieved HTML that we are trying to
+parse)
+.TP
+\fB--help\fP
+Display short usage information.
+.TP
+\fB--version\fP
+Display the version number.
+
+.SH CONFIGURATION SYNTAX
+
+The configuration file contains lines which contain either a comment, or a
+configuration directive.
+
+.SS Directives
+
+.TP
+base_url \fIurl\fP
+The base URL used to talk to the Mailman3 instance. \fI/accounts/login/\fB
+should exist directly under the given URL.
+
+.TP
+list \fIlistname\fP
+Adds listname to the lists that will be moderated. Should be of the form
+\fIlist@host.name\fP.
+
+.TP
+password \fIpassword\fP
+Specifies the password to use for logging in to the web interface.
+
+.TP
+username \fIusername\fP
+Specifies the username to use for logging in to the web interface.
+
+.SH FILES
+\fB$HOME/.listadmin3.ini\fP
+.PP
+The default configuration file.
+
+.SH BUGS
+This program works by scraping the HTML Mailman3 interface; changes there may
+cause parsing failures. At the time of writing it has only been tested on the
+author's Mailman3 instance; there is no guarantee it will work for anyone
+else.
+
+.SH AUTHOR
+Jonathan McDowell <noodles@earth.li>
+
