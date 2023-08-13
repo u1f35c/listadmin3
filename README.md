@@ -25,6 +25,33 @@ list announce@example.org
 `base_url` should point to the Mailman3 instance to manage - the login page is
 expected under `base_url/accounts/login/`
 
+### Usage
+
+Typical usage is just running `listadmin3` and responding to the prompts. It
+will try each configured list in turn, dealing with subscription requests and
+then messages held for moderation. Responses relating to subscription requests
+are carried out immediately, responses for pending messages are not processed
+until all messages are shown and the pending actions confirmed.
+
+```
+$ listadmin3
+fetching data for partypeople@example.org ... 200 messages
+(1/200) 5303: omgitsspam@example.org / March 31, 2023, 6:39 a.m.:
+  The message is not from a list member: TOP PICK
+(a)ccept, (d)iscard, (b)ody, (h)eaders, (s)kip, (q)uit? q
+Moving on...
+fetching data for admins@example.org ... 1 subscription requests
+(1/1) "The New Admin" <newadmin@example.org>
+(a)ccept, (d)iscard, (r)eject, (s)kip, (q)uit? a
+1 messages
+(1/1) 6560: anastyspamer@example.org / Aug. 13, 2023, 3:15 p.m.:
+  The message is not from a list member: Buy my stuff!
+(a)ccept, (d)iscard, (b)ody, (h)eaders, (s)kip, (q)uit? d
+0 to accept, 1 to discard, proceed? (y/n) y
+fetching data for announce@example.org ... nothing in queue
+$
+```
+
 ### TODO
 
 There are lots of features missing that are available in the original listadmin,
