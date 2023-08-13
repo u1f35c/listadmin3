@@ -58,10 +58,8 @@ There are lots of features missing that are available in the original listadmin,
 but message moderation has been the primary focus in getting something useful.
 Thoughts on things to add:
 
- * Ability to see message body
- * Command line configuration of config file location
- * Subscription management
  * Colourised output
+ * Generally better UX
  * Support for multiple hosts / login details in config file
 
 ### License
