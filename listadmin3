@@ -27,6 +27,7 @@
 import argparse
 import os
 import json
+import re
 import sys
 import termios
 import tty
@@ -140,7 +141,6 @@ class Mailman3UI:
         msg_form.choose_submit(action)
         self._browser.submit_selected()
 
-
     def get_message(self, listname: str, msg: int) -> dict:
         """ Retrieves a message from a list """
         page = self._browser.open(self._baseurl + 'postorius/api/list/' + listname +
@@ -149,6 +149,55 @@ class Mailman3UI:
             return {}
 
         return json.loads(page.text)
+
+    def get_pending_subscriptions(self, listname: str) -> list[dict]:
+        """ Get a list of subscription requests awaiting approval for the supplied listname """
+        page = self._browser.open(self._baseurl + 'postorius/lists/' + listname +
+                                  '/subscription_requests')
+
+        count_select = page.soup.find("select", attrs={'name': 'count'})
+        if not count_select:
+            # Assume no held messages (could check for "There are currently no subscriptions
+            # requests for thist list." message)
+            return []
+
+        if DEBUG:
+            print(page.text)
+
+        sub_table = page.soup.find("h2")
+        if "Subscriptions pending approval" not in sub_table.text:
+            raise HTMLParseError("Couldn't find pending subscriber list")
+        sub_table = sub_table.find_next_sibling("div")
+        sub_table = sub_table.find("table")
+        sub_list = sub_table.find("tbody")
+        subs = []
+        for sub_row in sub_list.find_all("tr"):
+            sub = {}
+            row_data = sub_row.find("td")
+            sub["email"] = row_data.text.strip()
+            row_data = row_data.find_next_sibling("td")
+            req_hash = row_data.find("a")
+            req_hash = re.search(r'.*/handle_subscription_request/([^/]+)/(accept|reject|discard)',
+                                 req_hash['href'])
+            if req_hash:
+                sub["req_hash"] = req_hash.group(1)
+
+            subs.append(sub)
+
+        return subs
+
+    def set_pending_subscription(self, listname: str, action: str, req_hash: str):
+        """ Set a pending subscription request for the supplied listname
+
+        action can be "accept", "reject" or "discard". req_hash is the hash provided from
+        get_pending_subscriptions.
+        """
+
+        page = self._browser.open(self._baseurl + 'postorius/lists/' + listname +
+                                  '/handle_subscription_request/' +
+                                  req_hash + '/' + action)
+        if DEBUG:
+            print(page.text)
 
 
 def getch(allowed_chars="") -> str:
@@ -197,21 +246,18 @@ def read_config(filename: str) -> dict:
 
 
 #pylint: disable=too-many-branches
-def moderate_list(mmui: Mailman3UI, listname: str):
-    """ Moderate the given list for the supplied Mailman3 web interface
+def moderate_messages(mmui: Mailman3UI, listname: str) -> bool:
+    """ Moderate the outstanding messages for given list for the supplied Mailman3 web interface
 
     Retrieves the list of held messages for the list, and displays each in turn to the user.
     The user can then select what to do with the message. Once all messages for the list have
     been dealt with the user is asked to confirm that we should proceed.
     """
 
-    print(f"fetching data for {listname} ... ", end='', flush=True)
-    listname.replace('@', '.')
     msgs = mmui.get_held_messages(listname)
     count = len(msgs)
     if count == 0:
-        print("nothing in queue")
-        return
+        return False
 
     print(f"{count} messages")
 
@@ -248,7 +294,7 @@ def moderate_list(mmui: Mailman3UI, listname: str):
             continue
         elif c == 'q':
             print("Moving on...")
-            return
+            return True
         i+= 1
 
     if len(todo['accept']) > 0 or len(todo['discard']) > 0:
@@ -262,12 +308,65 @@ def moderate_list(mmui: Mailman3UI, listname: str):
         print()
         if c != 'y':
             print("Moving on...")
-            return
+            return True
 
         if len(todo['accept']) > 0:
             mmui.set_held_messages(listname, 'accept', todo['accept'])
         if len(todo['discard']) > 0:
             mmui.set_held_messages(listname, 'discard', todo['discard'])
+
+    return True
+
+
+def moderate_subscribers(mmui: Mailman3UI, listname: str) -> bool:
+    """ Moderate pending subscribers for the given list for the supplied Mailman3 web interface
+
+    Retrieves the list of outstanding subscribers for the list, and displays each in turn to the
+    user. The user can then select what to do with the subscriber.
+
+    Returns true if there were some subscribers pending.
+    """
+
+    subs = mmui.get_pending_subscriptions(listname)
+    count = len(subs)
+    if count == 0:
+        return False
+
+    print(f"{count} subscription requests")
+
+    i = 1
+    for sub in subs:
+        print(f"({i}/{count}) {sub['email']}")
+        print("(a)ccept, (d)iscard, (r)eject, (s)kip, (q)uit? ", end='', flush=True)
+
+        # pylint: disable=invalid-name
+        c = getch("adrsq")
+        print()
+        if c == 'a':
+            mmui.set_pending_subscription(listname, 'accept', sub['req_hash'])
+        elif c == 'd':
+            mmui.set_pending_subscription(listname, 'discard', sub['req_hash'])
+        elif c == 'r':
+            mmui.set_pending_subscription(listname, 'discard', sub['req_hash'])
+        elif c == 'q':
+            print("Moving on...")
+            return True
+        i+= 1
+
+    return True
+
+
+def moderate_list(mmui: Mailman3UI, listname: str):
+    """ Moderate the subscribers + messages for a given list """
+
+    print(f"fetching data for {listname} ... ", end='', flush=True)
+    listname.replace('@', '.')
+
+    did_subs = moderate_subscribers(mmui, listname)
+    did_msgs = moderate_messages(mmui, listname)
+
+    if not (did_subs or did_msgs):
+        print("nothing in queue")
 
 
 def listadmin3():
