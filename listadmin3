@@ -221,7 +221,7 @@ def moderate_list(mmui: Mailman3UI, listname: str):
         if c == 'a':
             todo['accept'].append(msgs[i]['id'])
         elif c == 'b':
-            msg = webui.get_message(listname, msgs[i]['id'])
+            msg = mmui.get_message(listname, msgs[i]['id'])
             curline = 0
             for line in msg['msg']['body'].split('\n'):
                 print(f"| {line}")
@@ -232,7 +232,7 @@ def moderate_list(mmui: Mailman3UI, listname: str):
         elif c == 'd':
             todo['discard'].append(msgs[i]['id'])
         elif c == 'h':
-            msg = webui.get_message(listname, msgs[i]['id'])
+            msg = mmui.get_message(listname, msgs[i]['id'])
             for line in msg['msg']['headers'].split('\n'):
                 print(f"| {line}")
             continue
