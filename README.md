@@ -33,6 +33,10 @@ then messages held for moderation. Responses relating to subscription requests
 are carried out immediately, responses for pending messages are not processed
 until all messages are shown and the pending actions confirmed.
 
+Lists with more than 200 messages pending moderation will only show the first
+200; operations on those will work fine (and if you deal with the 200 and re-run
+you'll be able to moderate the later ones).
+
 ```
 $ listadmin3
 fetching data for partypeople@example.org ... 200 messages
@@ -59,6 +63,7 @@ but message moderation has been the primary focus in getting something useful.
 Thoughts on things to add:
 
  * Colourised output
+ * Support for rejecting messages (with reason)
  * Generally better UX
  * Support for multiple hosts / login details in config file
 
