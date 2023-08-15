@@ -64,24 +64,31 @@ class Mailman3UI:
         """ Logs out of the Mailman3 instance """
         self._browser.open(self._baseurl + 'accounts/logout/')
 
-    def get_held_messages(self, listname: str) -> list[dict]:
-        """ Get a list of held messages for the supplied listname """
+    def _fetch_held_messages(self, listname: str):
+        """ Get the held messages form for the given listname """
         page = self._browser.open(self._baseurl + 'postorius/lists/' + listname + '/held_messages')
 
         count_select = page.soup.find("select", attrs={'name': 'count'})
         if not count_select:
             # Assume no held messages (could check for "There are currently no held messages."
             # message)
-            return []
-        count_form = count_select.parent
-        count = 10
-        for option in count_select.find_all('option'):
-            if 'selected' in option.attrs:
-                count = option['value']
-        if count != 200:
-            count_form = self._browser.select_form(selector=count_form)
-            count_form.set_select({'count': 200})
-            page = self._browser.submit_selected()
+            return None
+
+        page_select = page.soup.find("form", class_="jump-to-page")
+        # Check if there are more messages than the current page and fetch up to 200 if so.
+        if page_select and page_select.find("option", attrs={'value': '2'}):
+            if DEBUG:
+                print("Pagination detected; fetching more pages")
+
+            count_form = count_select.parent
+            count = 10
+            for option in count_select.find_all('option'):
+                if 'selected' in option.attrs:
+                    count = option['value']
+            if count != 200:
+                count_form = self._browser.select_form(selector=count_form)
+                count_form.set_select({'count': 200})
+                page = self._browser.submit_selected()
 
         if DEBUG:
             print(f"Held messages :{page.text}:")
@@ -89,6 +96,14 @@ class Mailman3UI:
         msg_form = page.soup.find("h2")
         if msg_form.text.strip() != "Held Messages":
             raise HTMLParseError("Couldn't find held message list")
+
+        return msg_form
+
+    def get_held_messages(self, listname: str) -> list[dict]:
+        """ Get a list of held messages for the supplied listname """
+        msg_form = self._fetch_held_messages(listname)
+        if msg_form is None:
+            return []
         msg_form = msg_form.find_next_sibling("form")
         msg_list = msg_form.find("tbody")
         msgs = []
@@ -116,25 +131,7 @@ class Mailman3UI:
 
             action must be one of 'accept', 'discard', or 'reject'.
         """
-        page = self._browser.open(self._baseurl + 'postorius/lists/' + listname + '/held_messages')
-
-        count_select = page.soup.find("select", attrs={'name': 'count'})
-        count_form = count_select.parent
-        count = 10
-        for option in count_select.find_all('option'):
-            if 'selected' in option.attrs:
-                count = option['value']
-        if count != 200:
-            count_form = self._browser.select_form(selector=count_form)
-            count_form.set_select({'count': 200})
-            page = self._browser.submit_selected()
-
-        if DEBUG:
-            print(f"Held messages :{page.text}:")
-
-        msg_form = page.soup.find("h2")
-        if msg_form.text.strip() != "Held Messages":
-            raise HTMLParseError("Couldn't find held message list")
+        msg_form = self._fetch_held_messages(listname)
         msg_form = msg_form.find_next_sibling("form")
         msg_form = self._browser.select_form(selector=msg_form)
         msg_form.set_checkbox({'choices': msgs})
