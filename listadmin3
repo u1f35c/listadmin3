@@ -34,6 +34,12 @@ import tty
 
 import mechanicalsoup # type: ignore
 
+HAVE_COLOUR = True
+try:
+    import termcolor
+except ImportError:
+    HAVE_COLOUR = False
+
 #
 DEBUG = False
 
@@ -197,6 +203,19 @@ class Mailman3UI:
             print(page.text)
 
 
+def cprint(text: str,
+            colour: "str | None" = None) -> None:
+    """ Print colourized text.
+
+    Wraps termcolor.cprint and falls back to no colours if unavailable.
+    """
+
+    if HAVE_COLOUR:
+        termcolor.cprint(text, colour)
+    else:
+        print(text)
+
+
 def getch(allowed_chars="") -> str:
     """ Get a single character from stdin without waiting for enter to be pressed """
     stdin_fd = sys.stdin.fileno()
@@ -264,7 +283,7 @@ def moderate_messages(mmui: Mailman3UI, listname: str) -> bool:
     }
     i = 0
     while i < len(msgs):
-        print(f"({i+1}/{count}) {msgs[i]['sender']} / {msgs[i]['date']}:")
+        cprint(f"({i+1}/{count}) {msgs[i]['sender']} / {msgs[i]['date']}:", "yellow")
         print(f"  {msgs[i]['reason']}: {msgs[i]['subject']}")
         print("(a)ccept, (d)iscard, (b)ody, (h)eaders, (s)kip, (q)uit? ", end='', flush=True)
 
