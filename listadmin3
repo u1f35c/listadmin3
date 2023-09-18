@@ -100,9 +100,6 @@ class Mailman3UI:
             print(f"Held messages :{page.text}:")
 
         msg_form = page.soup.find("h2")
-        if msg_form.text.strip() != "Held Messages":
-            raise HTMLParseError("Couldn't find held message list")
-
         return msg_form
 
     def get_held_messages(self, listname: str) -> list[dict]:
