@@ -165,8 +165,6 @@ class Mailman3UI:
             print(page.text)
 
         sub_table = page.soup.find("h2")
-        if "Subscriptions pending approval" not in sub_table.text:
-            raise HTMLParseError("Couldn't find pending subscriber list")
         sub_table = sub_table.find_next_sibling("div")
         sub_table = sub_table.find("table")
         sub_list = sub_table.find("tbody")
