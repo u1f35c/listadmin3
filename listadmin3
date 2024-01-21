@@ -64,7 +64,13 @@ class Mailman3UI:
         self._browser.select_form(selector='form.login')
         self._browser["login"] = self._username
         self._browser["password"] = self._password
-        self._browser.submit_selected()
+        page = self._browser.submit_selected()
+
+        login_error = page.soup.find("div", class_="alert-danger")
+        if not login_error:
+            return (True, "")
+
+        return (False, login_error.string)
 
     def logout(self):
         """ Logs out of the Mailman3 instance """
@@ -404,7 +410,11 @@ def listadmin3():
     webui = Mailman3UI(url=config['base_url'],
                        username=config['username'],
                        password=config['password'])
-    webui.login()
+    login_ok, details = webui.login()
+
+    if not login_ok:
+        print("Could not login to web interface:", details)
+        return
 
     # pylint: disable=invalid-name
     for l in config['lists']:
