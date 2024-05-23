@@ -180,9 +180,15 @@ class Mailman3UI:
             row_data = sub_row.find("td")
             sub["email"] = row_data.text.strip()
             row_data = row_data.find_next_sibling("td")
-            req_hash = row_data.find("a")
-            req_hash = re.search(r'.*/handle_subscription_request/([^/]+)/(accept|reject|discard)',
-                                 req_hash['href'])
+            req_hash = row_data.find("form")
+            if req_hash is not None:
+                req_hash = re.search(r'.*/handle_subscription_request/([^/]+)/',
+                                 req_hash['action'])
+            if req_hash is None:
+                req_hash = row_data.find("a")
+                req_hash = re.search(
+                        r'.*/handle_subscription_request/([^/]+)/(|accept|reject|discard)$',
+                        req_hash['href'])
             if req_hash:
                 sub["req_hash"] = req_hash.group(1)
 
