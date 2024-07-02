@@ -323,13 +323,14 @@ def moderate_messages(mmui: Mailman3UI, listname: str) -> bool:
     if len(todo['accept']) > 0 or len(todo['discard']) > 0:
         print(f"{len(todo['accept'])} to accept, "
               f"{len(todo['discard'])} to discard, "
-               "proceed? (y/n) ",
+               "proceed? (y/n) [yes] ",
                 end='', flush=True)
 
         # pylint: disable=invalid-name
-        c = getch("ny")
-        print()
-        if c != 'y':
+        c = getch("ny\n")
+        if c != '\n':
+            print()
+        if c == 'n':
             print("Moving on...")
             return True
 
