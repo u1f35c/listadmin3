@@ -25,6 +25,10 @@ list announce@example.org
 `base_url` should point to the Mailman3 instance to manage - the login page is
 expected under `base_url/accounts/login/`
 
+It is possible to configure multiple different list hosts in the same
+configuration file; each `list` entry uses the most recent set of `base_url` /
+`username` / `password` details.
+
 ### Usage
 
 Typical usage is just running `listadmin3` and responding to the prompts. It
@@ -65,7 +69,6 @@ Thoughts on things to add:
  * Colourised output
  * Support for rejecting messages (with reason)
  * Generally better UX
- * Support for multiple hosts / login details in config file
 
 ### License
 
