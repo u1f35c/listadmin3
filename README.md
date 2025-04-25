@@ -82,6 +82,13 @@ currently probably only works on *nix style machines, due to how it handles
 accepting a single character response without the need for enter (in the `getch`
 function).
 
+You can run listadmin3 without installation using (for example) the
+[uv](https://docs.astral.sh/uv/) Python package and project manager like this:
+
+```shell
+uv run --script /path/to/listadmin3
+```
+
 ### Downloads
 
 listadmin3 is available via [GitHub](https://github.com/) at
