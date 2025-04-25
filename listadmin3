@@ -1,5 +1,12 @@
 #!/usr/bin/python3
 #
+# /// script
+# requires-python = ">=3"
+# dependencies = [
+#   "mechanicalsoup",
+# ]
+# ///
+#
 # Copyright 2023 Jonathan McDowell <noodles@earth.li>
 #
 # This program is free software: you can redistribute it and/or modify it under
